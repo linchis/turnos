@@ -1,0 +1,215 @@
+<html>
+<head>
+<title>Auto Refresh Div TURNOS Demo | jQuery4u</title>
+<!-- For ease i'm just using a JQuery version hosted by JQuery- you can download any version and link to it locally -->
+<script src="http://code.jquery.com/jquery-latest.js"></script>
+<style>
+    .turno_actual{
+        font-size: 50px;
+    }    
+    .en_espera{
+        font-size: 30px;
+    }
+    .historial{
+        font-size: 40px;   
+    }
+    .waiting{
+        position:fixed;
+        top: 50%;
+        left: 50%;
+        width:100px;
+        height:100px;
+        margin-top: -50px; /*set to a negative number 1/2 of your height*/
+        margin-left: -50px; /*set to a negative number 1/2 of your width*/
+        /*border: 1px solid #ccc;
+        background-color: #f3f3f3;
+        */
+    }
+    .wait_image{
+        max-width: 100%;    
+        max-height: 100%;
+    }
+</style>
+</head>
+<body>
+
+<div id="wrapper">
+
+    <div class="turno_actual">Turno Actual: <span id="content_actual"> </span> Puesto: <span id="content_actual_puesto"></span></div>
+    <div class="en_espera">Turnos en espera: <span id="content_espera"></span></div>
+    <div id="content_tm_espera"></div>        
+    <div id="content_tm_atencion"></div>        
+</div>
+
+<hr>
+
+<div>
+    <h2>Eventos del servidor</h2>
+    <div id="result"></div>        
+</div>
+
+<div class="waiting">
+    <img class="wait_image" src="../../imagenes/waiting.gif"/>
+</div>    
+
+</body>
+</html>
+
+
+<script>
+
+$(document).ready(function(){
+
+    var d;
+
+    var eventType = "mixto"
+    //var eventType = "local"
+    //var eventType = "server"    
+    var interval = 60;
+
+    var source;
+
+    init();
+
+    function init(){
+        d = new Date();
+        console.log("Arranque en: " + d);
+        $(".waiting").show();
+
+
+        if (eventType == "local"){            
+            configTimer(interval);
+        }else if (eventType == "server"){            
+            configEvents();
+        }else{
+            //AMBOS
+            configTimer(interval);
+            configEvents();
+        }        
+        $(".waiting").hide();        
+    }
+    
+
+    function configTimer(interval){
+        //Consulta cada N segundos al servidor         
+        info_turnos();
+        var refreshId = setInterval(function(){            
+            //console.log("AUTO_RELOAD");
+            info_turnos();
+        }, interval*1000);
+    }
+
+    function info_turnos(){                
+        var resultados = null;
+        var method = 'GET';                                
+        $.ajax({
+            url : 'http://proyectosxs.xyz/webtmp/services/rest/turnos/99999999999999999999999999999999',
+            type : method,
+            //data: json,     //JSON.stringify(json),
+            dataType:'json',
+            //contentType: "application/json",
+            success : function(data) {
+                console.log("SUCCESS:::"+JSON.stringify(data));
+                //resultados = jQuery.parseJSON(data);
+                resultados = data;                    
+            },
+            error : function(request,error)
+            {
+                console.log("ERROR:::"+JSON.stringify(request)+">>>"+error);
+            },
+            complete: function() {
+                if(resultados != null){
+                    showTurnos(resultados);                        
+                }else{
+                    console.log("SIN RESULTADO")
+                }
+            }
+        });                        
+    }
+
+    function configEvents(){
+        //Eventos asincronos del servidor//        
+        if(typeof(EventSource) !== "undefined") {
+            console.log("onEventSource OK");    
+            var source = new EventSource("event_demo.php");
+            //var source = new EventSource("event_manager.php");
+            //var source = new EventSource("server_event.php"); //OK
+
+            source.addEventListener('message', function(event) {
+                var obj = event.data;
+                console.log(obj);
+                var obj = JSON.parse(event.data);
+                console.log(obj);
+                try{
+                    showTurnos(obj);
+                }catch(err){
+                    console.log("ERROR:::JSON:"+err);    
+                }              
+            }, false);
+
+            source.addEventListener('open', function(event) {
+              console.log("OPEN");    
+              //updateConnectionStatus('Connected', true);
+            }, false);
+
+            source.addEventListener('error', function(event) {
+              if (event.eventPhase == 2) { //EventSource.CLOSED
+                console.log("ERROR");    
+                //updateConnectionStatus('Disconnected', false);
+              }
+            }, false);
+
+
+            /*
+            source.onmessage = function(event) {
+               
+                console.log("onMessage:::event.data:" + event);
+                //console.log("onMessage:::event.data:"+event.data);
+                
+                //A recibir JSON de turno consumido....
+                var obj = JSON.parse(event.data);
+                try{
+                    showTurnos(obj);
+                }catch(err){
+                    console.log("ERROR:::JSON:"+err);    
+                }
+            };
+            */
+
+        } else {
+            console.log("onEventSource FAIL");    
+            updateInfoEvent("Sorry, your browser does not support server-sent events...");        
+        }
+    }
+
+
+    function showTurnos(obj){
+        
+        $info1 = "";
+        $info2 = "";
+        $info3 = "";
+        $info4 = "";
+        if (obj.MENSAJE != undefined){
+            $info1 = obj.MENSAJE.ultimo_turno_consumido[0].TURNO;
+            $info2 = obj.MENSAJE.ultimo_turno_consumido[0].PUESTO;
+            $info3 = obj.MENSAJE.turnos_pendientes.length;
+            $info4 = obj;
+            
+        }else{
+            $info1 = obj.ultimo_turno_consumido[0].TURNO;
+            $info2 = obj.ultimo_turno_consumido[0].PUESTO;
+            $info3 = obj.turnos_pendientes.length;
+            $info4 = new Date();
+        }
+        $("#content_actual").text($info1);
+        $("#content_actual_puesto").text($info2);
+        $("#content_espera").text($info3);        
+        updateInfoEvent($info4);
+    }
+
+    function updateInfoEvent(info){
+        $("#result").text(info.FECHAHORA);
+    }
+  
+});
+</script>
