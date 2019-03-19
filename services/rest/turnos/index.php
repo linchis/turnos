@@ -98,6 +98,15 @@ $app->delete('/puesto/:id/:token', 'deletePuesto');
 //MENSAJES
 $app->get('/mensaje/:token', 'getMensaje');
 
+//TICKETS
+$app->get('/ticket/:token', 'newTicket');           //genera un inuevo ID de ticket
+$app->get('/ticket/:codigo/:token', 'getTicketByCodigo');   //devuelve la info de un ticket (ID)
+$app->get('/ticket/user/:user/:token', 'getAllTicketsByUser'); //devuelve los tickets de un usuario
+$app->get('/ticket/users/:token', 'getAllUsers'); //devuelve los tickets de un usuario
+$app->post('/ticket/buy/:token', 'buyTicket');      //cierra proceso de compra de un ticket por un usuario
+
+//PERSONA/CARACTERISTICAS
+$app->get('/search/:words', 'buscar');           //buscar caracteristicas
 
 //TODO: bool function_exists ( string $function_name ) Verificar si una funcion existe!!!!
 
@@ -229,6 +238,17 @@ function home() {
                     <li>[delete] /puesto/:id/:token</li>
                     <!--<li> <strike>[DELETE] /score/scoreid/token </strike></li>-->
                 </ul>
+
+                <h2>TICKETS</h2>
+                <h4>Generación y consulta de tickets</h4>
+                <ul>
+                    <li>[get] ticket/:token </li>
+                    <li>[get] ticket/:codigo/:token </li>
+                    <li>[get] ticket/user/:user/:token </li>
+                    <li>[get] ticket/users/:token </li>
+                    <li>[post] ticket/buy/:token </li>
+                    <!--<li> <strike>[DELETE] /score/scoreid/token </strike></li>-->
+                </ul>
             </section>
             
         </body>
@@ -273,7 +293,6 @@ function validacion($token) {
     }
 }
  
-
 function login() {
 
     global $log;
@@ -307,7 +326,6 @@ function login() {
     }
 }
 
-
 function loginMD5() {
     global $log;
     $request = \Slim\Slim::getInstance()->request();
@@ -338,9 +356,7 @@ function loginMD5() {
     }
 }
 
-
 //Funcion COMUN***********************************************************
-
 function isEnabled($service) {
     global $log;
     $respuesta = array(
@@ -363,7 +379,6 @@ function getTurnos($token) {
         echo '{"error":{"text":"Token required"}}';    
     }    
 }
-
 
 function _getTurnos(){
     global $log;
@@ -418,7 +433,6 @@ function _getTurnos(){
     return $respuesta;
 }
 
-
 /**
  * Funcion para consumir TURNO por un AGENTE/PUESTO (OK)
  * @param $token
@@ -429,26 +443,7 @@ function consumeTurno($agente,$token) {
         try {
             $log->LogInfo("CONSUME TURNO:::".$agente.", ".$token);  
           
-        //OPERACION DE BLOQUE (ATOMICA) SINCRONIZADA    
-            /*
-            class My extends Thread {
-                public function run() {
-                    $this->synchronized(function($thread){
-                        if (!$thread->done)
-                            $thread->wait();
-                    }, $this);
-                }
-            }
-            $my = new My();
-            $my->start();
-            $my->synchronized(function($thread){
-                $thread->done = true;
-                $thread->notify();
-            }, $my);
-            var_dump($my->join());
-            */
-
-
+            //OPERACION DE BLOQUE (ATOMICA) SINCRONIZADA    
             $database = getConnection();    
             $database->pdo->beginTransaction();
  
@@ -457,11 +452,6 @@ function consumeTurno($agente,$token) {
             $sql1 = "select * from pendientes where ESTADO=0 ORDER BY TURNO ASC Limit 1;";
             $data = $database->query($sql1)->fetchAll(PDO::FETCH_CLASS);
             $log->LogInfo("MIN TURNO:::".json_encode($data));    
-
-                                    
-            //});
-            
-                
 
             //Add turnos consumido           
             $result = $database->insert("consumidos",[
@@ -500,42 +490,7 @@ function consumeTurno($agente,$token) {
                 $database->pdo->rollBack();    
                 //return false;
             }   
-//            });
 
-            /*
-            $sql1 = "select * from pendientes where ESTADO=0 ORDER BY TURNO ASC Limit 1;";
-            //Minimo turno no atendido
-            $database = getConnection();    
-            $data = $db->query($sql1)->fetchAll(PDO::FETCH_CLASS);
-            $log->LogInfo("MIN TURNO:::".json_encode($data));              
-            $db = null;    
-                         
-            //Add turnos consumido
-            $db = getConnection();    
-            $result = $db->insert("consumidos",[
-                    "IDTURNO" => $data[0]->ID,
-                    "PUESTO" => $agente
-                ]);
-            $log->LogInfo("ADD TURNO CONSUMIDO:::".$result->rowCount());                
-            $db = null;    
-            
-            //update turno pendiente
-            $db = getConnection();    
-            $result = $db->update("pendientes",[
-                    "ESTADO" => 1
-                ],[
-                    "ID" => $data[0]->ID
-                ]);
-            $log->LogInfo("UPDATE_ TURNO PENDIENTE:::".$result->rowCount());                
-            $db = null;    
-            
-
-            $respuesta = array(
-                'action'    =>'consumeturno-'.$agente,
-                'turno_consumido' => $data
-            );
-            echo json_encode($respuesta);     
-            */
 
          } catch(PDOException $e) {
             $log->LogError("Consume turno ERROR:::". $e->getMessage());
@@ -592,7 +547,6 @@ function nuevoTurno($usuario,$token) {
     }
 }
 
-
 /**
  * Funcion para limpiar las lista de turnos y los usuarios registrados
  * @param $token
@@ -632,6 +586,176 @@ function borrarColas($token) {
     }
 }
 
+//TICKETS*****************************************************************************
+/**
+ * Genera un inuevo ID de ticket
+ * @param $token
+ */
+function newTicket($token){
+    global $log;
+    if (esTokenValido($token)){
+        $log->LogInfo("nuevo ticket!");
+        $fecha = new DateTime();        
+        $codigo = $fecha->getTimestamp();
+
+        try {
+            $db = getConnection();
+            $item = $db->insert(
+                "ticketid",
+                [
+                    'CODIGO' => $codigo                    
+                ]
+            );
+            $log->LogInfo("Insertando ticket: ".$db->id());
+            $db = null;
+            $estado = "OK";
+            $mensaje = "ticket insertado!";
+
+        } catch(PDOException $e) {
+            $log->LogError("Insertar ticket: ".$id." ERROR:::". $e->getMessage());
+            $estado = "FALLO";
+            $mensaje = "No se ha insertado ticket: " . $e;
+            $codigo = "";
+        }
+
+        //TODO: Update in DB
+        $respuesta = array(
+            'codigo'    => $codigo
+        );
+        echo json_encode($respuesta);
+    }else{
+        echo '{"error":{"text":"Token required"}}';    
+    }
+}
+
+/**
+ * obtener los datos de un ticket por su ID
+ * @param $id
+ * @param $token
+ */
+function getTicketByCodigo($codigo,$token){
+    global $log;
+    if (esTokenValido($token)){
+        $log->LogInfo("get ticket!");
+        $fecha = new DateTime();        
+        $codigo = $fecha->getTimestamp();
+
+        try {
+            $db = getConnection();
+            $item = $db->select("ticketcomprado","*",[
+                'CODIGO' => $codigo
+            ]);
+            $log->LogInfo("get ticket: ".$db->id());
+            $db = null;
+            $estado = "OK";
+            $mensaje = "get ticket";
+
+        } catch(PDOException $e) {
+            $log->LogError("get ticket by codigo: ".$id." ERROR:::". $e->getMessage());
+            $estado = "FALLO";
+            $mensaje = "No se ha obtenido ticket: " . $e;
+            $codigo = "";
+        }
+
+        //TODO: Update in DB
+        $respuesta = array(
+            'codigo'    => $codigo
+        );
+        echo json_encode($respuesta);
+    }else{
+        echo '{"error":{"text":"Token required"}}';    
+    }
+}
+
+/**
+ * obtener los tickets de un usuario
+ * @param $user
+ * @param $token
+ */
+function getAllTicketsByUser($user,$token){
+    global $log;
+    if (esTokenValido($token)){
+        $log->LogInfo("get ticket by user!");
+        $fecha = new DateTime();        
+        $codigo = $fecha->getTimestamp();
+
+        try {
+            $sql = "select c.* from ticketcomprado c, ticketusuario u 
+                    where u.usuario = ".$usuario." and c.IDDISPOSITIVO = u.iddispostivo";
+            $db = getConnection();
+            $item = $db->query($sql)->fetchAll(PDO::FETCH_CLASS);
+            $log->LogInfo("get ticket: ".$db->id());
+            $db = null;
+            $estado = "OK";
+            $mensaje = "get ticket";
+
+        } catch(PDOException $e) {
+            $log->LogError("get ticket by codigo: ".$id." ERROR:::". $e->getMessage());
+            $estado = "FALLO";
+            $mensaje = "No se ha obtenido ticket: " . $e;
+            $codigo = "";
+        }
+
+        //TODO: Update in DB
+        $respuesta = array(
+            'codigo'    => $codigo
+        );
+        echo json_encode($respuesta);
+    }else{
+        echo '{"error":{"text":"Token required"}}';    
+    }
+}
+
+/**
+ * obtener todos los tickets por busqueda generica
+ * @param $search
+ * @param $token
+ */
+function getAllTickets($search,$token){
+
+}
+
+/**
+ * obtener todos los usuarios 
+ * @param $token
+ */
+function getAllUsers($token){
+
+}
+
+/**
+ * POST Confirmar y registrar la compra de un ticket
+ * @param $token
+ */
+function buyTicket($token){
+
+}
+
+
+//CARACTERISTICAS*****************************************************************************
+function buscar($word){
+    global $log;    
+    $log->LogInfo("buscar ".$word);
+    $items = array();
+    try {
+
+        $sql = "SELECT p.nombre as persona, c.nombre as nombre, c.valor as valor
+            FROM caracteristica c, persona p
+            where (p.id = c.idpersona and c.valor like '%".$word."%') ORDER BY p.id ASC";
+        $sql2 = "SELECT p.nombre as persona, c.nombre as nombre, c.valor as valor
+            FROM caracteristica c, persona p
+            where (p.id = c.idpersona) ORDER BY p.id ASC";
+
+        $db = getConnection();
+        $items = $db->query($sql)->fetchAll(PDO::FETCH_CLASS);
+        //var_dump($db->debug());
+        $log->LogInfo($sql." >> resultados: ".sizeof($items));                    
+        $db = null;            
+    } catch(PDOException $e) {
+        $log->LogError("search error:::". $e->getMessage());            
+    }        
+    echo json_encode($items);    
+}
 
 
 //FUNCIONES COMPLEMENTARIAS*****************
@@ -882,7 +1006,6 @@ function getItem($id,$token) {
         echo '{"error":{"text":"Token required"}}';
     }
 }
-
 
 /**
  * Funcion para añadir un item en BBDD (POST)
