@@ -43,7 +43,7 @@ while (1) {
 function getMessage(){
     global $log;
     //$log->Loginfo("¿hay mensaje?:::");
-    $message = file_get_contents('http://proyectosxs.xyz/webtmp/services/rest/turnos/mensaje/99999999999999999999999999999999');    
+    $message = file_get_contents('<URL_GET_MESSAGES>');    
     
     if (isset($message) && $message != ""){      
       send($message);      
@@ -56,7 +56,7 @@ function getMessage(){
 function getTurnos(){
     global $log;
     $log->LogInfo("Turnos init");
-    $message = file_get_contents('http://proyectosxs.xyz/webtmp/services/rest/turnos/99999999999999999999999999999999');    
+    $message = file_get_contents('<URL_GET_TURNOS>');    
     
     if (isset($message) && $message != ""){
       send($message);      
